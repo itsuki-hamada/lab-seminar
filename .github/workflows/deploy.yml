@@ -1,0 +1,49 @@
+# Deploy the slides listed in published.txt of the private source repository
+name: Deploy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: itsuki-hamada/lab-seminar-src
+          ssh-key: ${{ secrets.SOURCE_DEPLOY_KEY }}
+          persist-credentials: false
+          path: source
+
+      - name: Collect published slides
+        run: |
+          mkdir site
+          while IFS= read -r slug || [ -n "$slug" ]; do
+            [ -z "$slug" ] && continue
+            if [ ! -d "source/output/$slug" ]; then
+              echo "::error::output/$slug not found in lab-seminar-src"
+              exit 1
+            fi
+            cp -R "source/output/$slug" "site/$slug"
+          done < source/published.txt
+
+      - uses: actions/configure-pages@v6
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+      - id: deployment
+        uses: actions/deploy-pages@v5
